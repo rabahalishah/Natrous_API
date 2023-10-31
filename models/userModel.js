@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const catchAsync = require('../utils/catchAsync');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -41,6 +42,11 @@ const userSchema = new mongoose.Schema({
   passwordChangedAt: Date,
   passwordResetToken: String,
   passwordResetExpires: Date,
+  active: {
+    type: Boolean,
+    default: true,
+    select: false,
+  },
 });
 
 userSchema.pre('save', async function (next) {
@@ -55,6 +61,22 @@ userSchema.pre('save', async function (next) {
   this.passwordConfirm = undefined;
   next();
 });
+
+userSchema.pre('save', function (next) {
+  if (!this.isModified('password') || this.isNew) return next();
+
+  this.passwordChangedAt = Date.now() - 1000;
+  next();
+});
+
+userSchema.pre(/^find/, function (next) {
+  //this points to the current query
+  this.find({ active: { $ne: false } });
+  next();
+});
+// This query middleware will run just before any mongoose method starting with "find" here regex means /^find/ that too.
+// this query is like filter. It will only show the users whose active status is not false in the database
+
 //(An instance method is a method which is available to all the docuemnt in whcih it has created
 // as in this case it is user Document)
 //creating a global Instance method to compare the password

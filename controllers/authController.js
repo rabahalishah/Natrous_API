@@ -4,10 +4,34 @@ const User = require('./../models/userModel');
 const catchAsnyc = require('./../utils/catchAsync');
 const AppError = require('./../utils/appError');
 const sendEmail = require('./../utils/email');
+const crypto = require('crypto');
 
 const signToken = (id) => {
   return jwt.sign({ id: id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+};
+
+const createSendToken = (user, statusCode, res) => {
+  const token = signToken(user._id);
+
+  const cookieOptions = {
+    expires: new Date(
+      Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
+    ),
+
+    httpOnly: true, //so browser cannot access or modify it
+  };
+
+  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+
+  res.cookie('jwt', token, cookieOptions);
+  res.status(statusCode).json({
+    status: 'success',
+    token: token,
+    data: {
+      user: user,
+    },
   });
 };
 exports.signup = catchAsnyc(async (req, res) => {
@@ -18,14 +42,7 @@ exports.signup = catchAsnyc(async (req, res) => {
     passwordConfirm: req.body.passwordConfirm,
   });
   const token = signToken(newUser._id);
-
-  res.status(201).json({
-    status: 'success',
-    token: token,
-    data: {
-      user: newUser,
-    },
-  });
+  createSendToken(newUser, 201, res);
 });
 
 exports.login = catchAsnyc(async (req, res, next) => {
@@ -46,11 +63,7 @@ exports.login = catchAsnyc(async (req, res, next) => {
   }
 
   // If everything ok, then send token to client
-  const token = signToken(user._id);
-  res.status(200).json({
-    status: 'success',
-    token: token,
-  });
+  createSendToken(user, 200, res);
 });
 
 exports.protect = catchAsnyc(async (req, res, next) => {
@@ -155,4 +168,53 @@ exports.forgotPassword = catchAsnyc(async (req, res, next) => {
     );
   }
 });
-exports.resetPassword = (req, res, next) => {};
+
+exports.resetPassword = catchAsnyc(async (req, res, next) => {
+  // get user based on token
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(req.params.token)
+    .digest('hex');
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() },
+  });
+
+  //If token hase not expired and there is user set the new password
+  if (!user) {
+    return next(new AppError('Token is invalid or has expired, 400'));
+  }
+  //updating password and confirm password
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+
+  // deleting the Reset token and reset Token expire from the db once the password is updated
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+
+  await user.save(); //here we are not truning OFF the validators. As we want to validate the password.
+
+  //update  changedPasswordAt property for the user
+
+  // log the user in, send JWT
+  createSendToken(user, 200, res);
+});
+
+exports.updatePassword = catchAsnyc(async (req, res, next) => {
+  // Get user from collection
+  const user = await User.findById(req.user.id).select('+password');
+  //here req.user is our current user which we have stored in the above code of protect middleware function
+
+  // Check if the posted current password is correct by comparing it with the password stored in the database
+  if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
+    return next(new AppError('Your current password is wrong!'));
+  }
+  // If so, update password
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+  await user.save();
+
+  // Log user in send JWT
+  createSendToken(user, 200, res);
+});
