@@ -2,41 +2,41 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const catchAsync = require('../utils/catchAsync');
+// const catchAsync = require('../utils/catchAsync');
 
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    require: [true, 'Please tell use your name'],
+    required: [true, 'Please tell us your name!'],
   },
   email: {
     type: String,
-    require: [true, 'Please provide your email'],
+    required: [true, 'Please provide your email'],
     unique: true,
     lowercase: true,
-    validate: [validator.isEmail, 'Please provide a valid email'], //isEmail is a builtin function validator npm doucment.
+    validate: [validator.isEmail, 'Please provide a valid email'],
   },
-  photo: { type: String, require: true },
+  photo: String,
   role: {
     type: String,
-    enum: ['admin', 'guide', 'lead-guide', 'user'],
+    enum: ['user', 'guide', 'lead-guide', 'admin'],
     default: 'user',
   },
   password: {
     type: String,
-    require: [true, 'Please provide a password'],
+    required: [true, 'Please provide a password'],
     minlength: 8,
     select: false,
   },
   passwordConfirm: {
     type: String,
-    require: [true, 'Please confirm your password'],
+    required: [true, 'Please confirm your password'],
     validate: {
-      //This will work only on saving or creating a user
+      // This only works on CREATE and SAVE!!!
       validator: function (el) {
         return el === this.password;
       },
-      message: 'Passwords are not the same',
+      message: 'Passwords are not the same!',
     },
   },
   passwordChangedAt: Date,

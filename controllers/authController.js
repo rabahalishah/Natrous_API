@@ -116,11 +116,12 @@ exports.protect = catchAsnyc(async (req, res, next) => {
 
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
-    // where roles = ['admin', 'lead-guie'] are allowed
-    console.log('roles: ', roles);
+    // roles ['admin', 'lead-guide']. role='user'
+    // console.log('req.user.role: ', req.user.role);
+    // console.log('role.include: ', !roles.includes(req.user.role));
     if (!roles.includes(req.user.role)) {
       return next(
-        new AppError('You are not have permission to perform this action', 403),
+        new AppError('You do not have permission to perform this action', 403),
       );
     }
     next();

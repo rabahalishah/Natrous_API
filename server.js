@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 dotenv.config({ path: './config.env' });
 
 process.on('uncaughtException', (err) => {
-  console.log('UNCAUGHT EXCEPTION');
+  console.log(err, 'UNCAUGHT EXCEPTION');
   process.exit(1);
 });
 const app = require('./app');
